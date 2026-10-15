@@ -19,8 +19,6 @@ results_dir = Path("results")
 
 digits = load_digits()
 
-# Each image is 8 x 8. sklearn flattens it to 64 features.
-# Pixel values are in [0, 16], so divide by 16 to normalize to [0, 1].
 X = digits.data.astype(np.float64) / 16.0
 y = digits.target
 
@@ -34,7 +32,6 @@ def one_hot_encode(labels, num_classes=10):
 
 Y = one_hot_encode(y, num_classes=10)
 
-# Split the inputs and both label representations together.
 X_train, X_test, Y_train, Y_test, y_train, y_test = train_test_split(
     X,
     Y,
@@ -52,12 +49,6 @@ print("Training one-hot labels:", Y_train.shape)
 print("Test one-hot labels:", Y_test.shape)
 print("Normalized input range:", X.min(), "to", X.max())
 
-
-# ============================================================
-# 2. Initialize parameters
-# Architecture: 64 -> W -> W -> 10
-# Requirement: all weights ~ N(0, 0.01); all biases are zero.
-# ============================================================
 def initialize_parameters(input_size, hidden_width, output_size=10, seed=42):
     rng = np.random.default_rng(seed)
 
@@ -71,9 +62,6 @@ def initialize_parameters(input_size, hidden_width, output_size=10, seed=42):
     }
 
 
-# ============================================================
-# 3. Activation functions
-# ============================================================
 def relu(z):
     """Rectified Linear Unit: max(0, z)."""
     return np.maximum(0.0, z)
@@ -84,23 +72,18 @@ def softmax(logits):
     shifted = logits - np.max(logits, axis=1, keepdims=True)
     exp_values = np.exp(shifted)
     return exp_values / np.sum(exp_values, axis=1, keepdims=True)
-# ============================================================
-# 4. Forward propagation
-# ============================================================
+
 def forward_pass(X_batch, params):
-    # First hidden layer
+  
     Z1 = X_batch @ params["W1"] + params["b1"]
     A1 = relu(Z1)
 
-    # Second hidden layer
     Z2 = A1 @ params["W2"] + params["b2"]
     A2 = relu(Z2)
 
-    # Output layer: softmax gives one probability per class
     Z3 = A2 @ params["W3"] + params["b3"]
     probabilities = softmax(Z3)
 
-    # Cache values needed by backpropagation
     cache = {
         "X": X_batch,
         "Z1": Z1,
@@ -112,21 +95,11 @@ def forward_pass(X_batch, params):
     }
     return probabilities, cache
 
-
-# ============================================================
-# 5. Cross-entropy loss
-# ============================================================
 def cross_entropy_loss(probabilities, Y_batch):
-    # Y_batch is one-hot, so this selects the probability of each
-    # example's correct class. Epsilon prevents log(0).
     epsilon = 1e-12
     correct_class_probabilities = np.sum(Y_batch * probabilities, axis=1)
     return -np.mean(np.log(correct_class_probabilities + epsilon))
 
-
-# ============================================================
-# 6. Backpropagation
-# ============================================================
 def backward_pass(Y_batch, params, cache):
     m = Y_batch.shape[0]
 
@@ -137,18 +110,15 @@ def backward_pass(Y_batch, params, cache):
     A2 = cache["A2"]
     P = cache["P"]
 
-    # Softmax + cross-entropy derivative
     dZ3 = (P - Y_batch) / m
     dW3 = A2.T @ dZ3
     db3 = np.sum(dZ3, axis=0)
 
-    # Backpropagate through second ReLU layer
     dA2 = dZ3 @ params["W3"].T
     dZ2 = dA2 * (Z2 > 0)
     dW2 = A1.T @ dZ2
     db2 = np.sum(dZ2, axis=0)
 
-    # Backpropagate through first ReLU layer
     dA1 = dZ2 @ params["W2"].T
     dZ1 = dA1 * (Z1 > 0)
     dW1 = X_batch.T @ dZ1
@@ -163,10 +133,6 @@ def backward_pass(Y_batch, params, cache):
         "b3": db3,
     }
 
-
-# ============================================================
-# 7. Accuracy
-# ============================================================
 def calculate_accuracy(X_data, Y_data, params):
     probabilities, _ = forward_pass(X_data, params)
     predictions = np.argmax(probabilities, axis=1)
@@ -174,9 +140,6 @@ def calculate_accuracy(X_data, Y_data, params):
     return np.mean(predictions == correct_labels)
 
 
-# ============================================================
-# 8. Numerical gradient checking
-# ============================================================
 def numerical_gradient(
     params,
     X_batch,
@@ -199,9 +162,6 @@ def numerical_gradient(
         p_minus, cache_minus = forward_pass(X_batch, params)
         loss_minus = cross_entropy_loss(p_minus, Y_batch)
 
-        # ReLU is not differentiable at zero. A numerical check is valid
-        # only when this small perturbation leaves hidden activation masks
-        # unchanged. If not, the caller draws another random parameter.
         stable = (
             np.array_equal(base_cache["Z1"] > 0, cache_plus["Z1"] > 0)
             and np.array_equal(base_cache["Z1"] > 0, cache_minus["Z1"] > 0)
@@ -225,7 +185,6 @@ def run_gradient_check():
         seed=random_state,
     )
 
-    # Small fixed batch makes finite-difference checks fast and reproducible.
     X_batch = X_train[:8]
     Y_batch = Y_train[:8]
     probabilities, cache = forward_pass(X_batch, params)
@@ -250,8 +209,6 @@ def run_gradient_check():
             params, X_batch, Y_batch, name, index
         )
 
-        # Do not count points where a ReLU activation changes during the
-        # finite-difference perturbation; those points are not differentiable.
         if not stable:
             continue
 
@@ -283,10 +240,6 @@ def run_gradient_check():
             "errors rather than changing the tolerance."
         )
 
-
-# ============================================================
-# 9. Train with mini-batch gradient descent
-# ============================================================
 def train_network(
     X_train_data,
     Y_train_data,
@@ -306,7 +259,6 @@ def train_network(
     loss_history = []
 
     for epoch in range(epochs):
-        # Shuffle the training examples every epoch.
         permutation = rng.permutation(X_train_data.shape[0])
         X_shuffled = X_train_data[permutation]
         Y_shuffled = Y_train_data[permutation]
@@ -319,11 +271,9 @@ def train_network(
             probabilities, cache = forward_pass(X_batch, params)
             gradients = backward_pass(Y_batch, params, cache)
 
-            # Gradient-descent update for all weights and biases.
             for name in params:
                 params[name] -= learning_rate * gradients[name]
 
-        # Record full-training-set loss after each epoch.
         train_probabilities, _ = forward_pass(X_train_data, params)
         epoch_loss = cross_entropy_loss(train_probabilities, Y_train_data)
         loss_history.append(epoch_loss)
@@ -336,10 +286,6 @@ def train_network(
 
     return params, loss_history
 
-
-# ============================================================
-# 10. Run all combinations: 2 widths x 3 learning rates
-# ============================================================
 def run_experiments():  
     results_dir.mkdir(parents=True, exist_ok=True)
     results = {}
@@ -377,7 +323,6 @@ def run_experiments():
             print(f"Test accuracy:     {test_accuracy:.4f}")
             print(f"Training time:     {training_seconds:.2f} seconds")
 
-    # Plot one curve per configuration.
     results_dir.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 6))
     for (width, learning_rate), result in results.items():
@@ -415,11 +360,6 @@ def run_experiments():
 
     return results
 
-
-# ============================================================
-# 11. Benchmark forward and backward passes
-# Median of 100 repetitions, as required.
-# ============================================================
 def benchmark_forward_backward(
     hidden_width=64,
     batch_size=batch_size,
@@ -434,7 +374,6 @@ def benchmark_forward_backward(
     X_batch = X_train[:batch_size]
     Y_batch = Y_train[:batch_size]
 
-    # Warm-up is not included in the timing measurements.
     probabilities, cache = forward_pass(X_batch, params)
     backward_pass(Y_batch, params, cache)
 
@@ -456,10 +395,6 @@ def benchmark_forward_backward(
     print(f"Forward pass median:  {np.median(forward_times) * 1000:.4f} ms")
     print(f"Backward pass median: {np.median(backward_times) * 1000:.4f} ms")
 
-
-# ============================================================
-# 12. Main program
-# ============================================================
 if __name__ == "__main__":
     run_gradient_check()
     experiment_results = run_experiments()
